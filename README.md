@@ -62,7 +62,6 @@ panel_custom:
     url_path: wsdot
     module_url: /local/wsdot-panel.js
     embed_iframe: false
-    trust_external_panels: true
 ```
 
 Then restart Home Assistant and find **WSDOT Traffic** in the sidebar.

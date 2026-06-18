@@ -1262,5 +1262,4 @@ window.customPanels.push({
   tag: "wsdot-panel",
   url: "/local/wsdot-panel.js",
   embed_iframe: false,
-  trust_external_panels: true,
 });
