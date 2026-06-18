@@ -1,0 +1,13 @@
+{
+  "domain": "wsdot",
+  "name": "WSDOT Traffic",
+  "version": "1.0.0",
+  "config_flow": true,
+  "documentation": "https://github.com/yourusername/wsdot-ha-integration",
+  "issue_tracker": "https://github.com/yourusername/wsdot-ha-integration/issues",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@yourusername"],
+  "iot_class": "cloud_polling",
+  "homeassistant": "2023.1.0"
+}

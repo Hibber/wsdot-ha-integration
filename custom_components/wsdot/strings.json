@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "WSDOT Traffic",
+        "description": "Enter your WSDOT Traffic API key. You can get one at https://wsdot.wa.gov/traffic/api/",
+        "data": {
+          "api_key": "API Key"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to WSDOT API. Please check your internet connection.",
+      "invalid_auth": "Invalid API key. Please check your WSDOT API key and try again.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "WSDOT Traffic is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "WSDOT Traffic Options",
+        "data": {
+          "scan_interval": "Update interval (seconds)"
+        }
+      }
+    }
+  }
+}
