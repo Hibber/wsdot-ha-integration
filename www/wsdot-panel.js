@@ -1253,13 +1253,4 @@ class WsdotPanel extends LitElement {
 }
 
 // Register the panel
-customElements.define("wsdot-panel", WsdotPanel);
-
-// Register as Lovelace panel
-window.customPanels = window.customPanels || [];
-window.customPanels.push({
-  name: "wsdot-panel",
-  tag: "wsdot-panel",
-  url: "/local/wsdot-panel.js",
-  embed_iframe: false,
-});
+customElements.define("ha-panel-wsdot", WsdotPanel);
