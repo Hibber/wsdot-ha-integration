@@ -133,7 +133,7 @@ class WsdotPanel extends HTMLElement {
 
   _createIcon(emoji, color) {
     return L.divIcon({
-      html: \`<div class="dot" style="background:\${color};">\${emoji}</div>\`,
+      html: `<div class="dot" style="background:${color};">${emoji}</div>`,
       className: "",
       iconSize: [24, 24],
       iconAnchor: [12, 12]
@@ -159,10 +159,10 @@ class WsdotPanel extends HTMLElement {
         const pic = attrs.entity_picture || "";
         marker = L.marker([attrs.latitude, attrs.longitude], { icon: this._createIcon("📷", "#3b82f6") })
           .bindPopup(
-            \`<div class="popup-content">
-              <div class="popup-title">\${attrs.friendly_name}</div>
-              \${pic ? \`<img class="popup-img" src="\${pic}" onerror="this.style.display='none'" />\` : ""}
-            </div>\`, 
+            `<div class="popup-content">
+              <div class="popup-title">${attrs.friendly_name}</div>
+              ${pic ? `<img class="popup-img" src="${pic}" onerror="this.style.display='none'" />` : ""}
+            </div>`, 
             { maxWidth: 340 }
           );
       } else if (attrs.travel_time_id) {
@@ -175,21 +175,21 @@ class WsdotPanel extends HTMLElement {
         
         marker = L.marker([attrs.latitude, attrs.longitude], { icon: this._createIcon("🚗", color) })
           .bindPopup(
-            \`<div class="popup-content">
-              <div class="popup-title">\${attrs.friendly_name}</div>
-              <div class="popup-stat" style="color: \${color}; font-size: 16px; font-weight: bold;">\${stateObj.state} min now</div>
-              <div class="popup-stat" style="color: #94a3b8;">Avg: \${attrs.average_time_minutes} min</div>
-            </div>\`
+            `<div class="popup-content">
+              <div class="popup-title">${attrs.friendly_name}</div>
+              <div class="popup-stat" style="color: ${color}; font-size: 16px; font-weight: bold;">${stateObj.state} min now</div>
+              <div class="popup-stat" style="color: #94a3b8;">Avg: ${attrs.average_time_minutes} min</div>
+            </div>`
           );
       } else if (attrs.pass_id) {
         // Mountain Pass
         marker = L.marker([attrs.latitude, attrs.longitude], { icon: this._createIcon("⛰️", "#8b5cf6") })
           .bindPopup(
-            \`<div class="popup-content">
-              <div class="popup-title">\${attrs.friendly_name}</div>
-              <div class="popup-stat" style="color: #f59e0b;">\${stateObj.state}</div>
-              <div class="popup-stat">Temp: \${attrs.temperature}°F</div>
-            </div>\`
+            `<div class="popup-content">
+              <div class="popup-title">${attrs.friendly_name}</div>
+              <div class="popup-stat" style="color: #f59e0b;">${stateObj.state}</div>
+              <div class="popup-stat">Temp: ${attrs.temperature}°F</div>
+            </div>`
           );
       }
 
