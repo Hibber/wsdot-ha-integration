@@ -23,6 +23,9 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FLOW_DATA_URL,
+    LOCAL_BBOX,
+    LOCAL_PASS_IDS,
+    LOCAL_ROAD_NAMES,
     PASS_CONDITIONS_URL,
     TRAVEL_TIMES_URL,
 )
@@ -76,6 +79,71 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
             return None
 
     # ------------------------------------------------------------------
+    # Local area filtering
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _in_bbox(lat: float | None, lon: float | None) -> bool:
+        """Return True if the coordinate falls inside the local bounding box."""
+        if lat is None or lon is None:
+            return False
+        return (
+            LOCAL_BBOX["lat_min"] <= lat <= LOCAL_BBOX["lat_max"]
+            and LOCAL_BBOX["lon_min"] <= lon <= LOCAL_BBOX["lon_max"]
+        )
+
+    @staticmethod
+    def _filter_local_data(data: dict) -> dict:
+        """Trim all four datasets to the local area."""
+        # --- Travel times: keep if EITHER endpoint is in bbox OR road is local ---
+        filtered_tt = []
+        for rec in data.get(DATA_TRAVEL_TIMES, []):
+            start = rec.get("StartPoint", {})
+            end = rec.get("EndPoint", {})
+            in_bbox = (
+                WSDOTDataUpdateCoordinator._in_bbox(start.get("Latitude"), start.get("Longitude"))
+                or WSDOTDataUpdateCoordinator._in_bbox(end.get("Latitude"), end.get("Longitude"))
+            )
+            on_local_road = (
+                start.get("RoadName") in LOCAL_ROAD_NAMES
+                or end.get("RoadName") in LOCAL_ROAD_NAMES
+            )
+            if in_bbox or on_local_road:
+                filtered_tt.append(rec)
+        data[DATA_TRAVEL_TIMES] = filtered_tt
+
+        # --- Mountain passes: keep only the curated local set ---
+        data[DATA_PASS_CONDITIONS] = [
+            rec for rec in data.get(DATA_PASS_CONDITIONS, [])
+            if rec.get("MountainPassId") in LOCAL_PASS_IDS
+        ]
+
+        # --- Cameras: keep only those whose display location is in bbox ---
+        data[DATA_CAMERAS] = [
+            rec for rec in data.get(DATA_CAMERAS, [])
+            if WSDOTDataUpdateCoordinator._in_bbox(
+                rec.get("DisplayLatitude"), rec.get("DisplayLongitude")
+            )
+        ]
+
+        # --- Flow stations: keep only those in bbox ---
+        data[DATA_FLOW] = [
+            rec for rec in data.get(DATA_FLOW, [])
+            if WSDOTDataUpdateCoordinator._in_bbox(
+                rec.get("Latitude"), rec.get("Longitude")
+            )
+        ]
+
+        _LOGGER.debug(
+            "Local filter applied — travel_times: %d, passes: %d, cameras: %d, flow: %d",
+            len(data[DATA_TRAVEL_TIMES]),
+            len(data[DATA_PASS_CONDITIONS]),
+            len(data[DATA_CAMERAS]),
+            len(data[DATA_FLOW]),
+        )
+        return data
+
+    # ------------------------------------------------------------------
     # DataUpdateCoordinator interface
     # ------------------------------------------------------------------
 
@@ -99,13 +167,15 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
         for key_name, result in zip(urls.keys(), results):
             if isinstance(result, Exception):
                 _LOGGER.error("Error fetching %s: %s", key_name, result)
-                # Keep previous data if available
                 if self.data and key_name in self.data:
                     data[key_name] = self.data[key_name]
                 else:
                     data[key_name] = []
             else:
                 data[key_name] = result or []
+
+        # Apply local area filter before returning
+        data = self._filter_local_data(data)
 
         if not data[DATA_TRAVEL_TIMES] and not data[DATA_PASS_CONDITIONS]:
             raise UpdateFailed("No data received from WSDOT API")
