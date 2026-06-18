@@ -12,7 +12,7 @@ Real-time Washington State DOT data: travel times, mountain pass conditions, hig
 
 ## Installation
 
-[![Install via HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=yourusername&repository=wsdot-ha-integration&category=integration)
+[![Install via HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Hibber&repository=wsdot-ha-integration&category=integration)
 
 Or install manually — see [README.md](README.md) for full instructions.
 

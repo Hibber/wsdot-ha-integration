@@ -3,11 +3,11 @@
   "name": "WSDOT Traffic",
   "version": "1.0.0",
   "config_flow": true,
-  "documentation": "https://github.com/yourusername/wsdot-ha-integration",
-  "issue_tracker": "https://github.com/yourusername/wsdot-ha-integration/issues",
+  "documentation": "https://github.com/Hibber/wsdot-ha-integration",
+  "issue_tracker": "https://github.com/Hibber/wsdot-ha-integration/issues",
   "requirements": [],
   "dependencies": [],
-  "codeowners": ["@yourusername"],
+  "codeowners": ["@Hibber"],
   "iot_class": "cloud_polling",
   "homeassistant": "2023.1.0"
 }
