@@ -16,6 +16,13 @@ import pytest
 ha_mock = MagicMock()
 
 
+# --- homeassistant.exceptions ---
+class _FakeConfigEntryAuthFailed(Exception):
+    pass
+
+
+ha_mock.exceptions.ConfigEntryAuthFailed = _FakeConfigEntryAuthFailed
+
 # --- homeassistant.core ---
 class _FakeHomeAssistant:
     def __init__(self):
@@ -212,6 +219,7 @@ _ha_modules = {
     "homeassistant.components.sensor": ha_mock.components.sensor,
     "homeassistant.components.binary_sensor": ha_mock.components.binary_sensor,
     "homeassistant.components.camera": ha_mock.components.camera,
+    "homeassistant.exceptions": ha_mock.exceptions,
 }
 
 for mod_name, mod in _ha_modules.items():
