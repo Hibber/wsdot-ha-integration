@@ -391,7 +391,10 @@ class TestAsyncUpdateData:
 
         fake_session = _FakeSession(responses=[travel_times, passes, cameras, flow])
 
-        with patch("aiohttp.ClientSession", return_value=fake_session):
+        with patch(
+            "custom_components.wsdot.coordinator.async_get_clientsession",
+            return_value=fake_session,
+        ):
             result = await coord._async_update_data()
 
         # Should have filtered data
@@ -412,7 +415,10 @@ class TestAsyncUpdateData:
 
         fake_session = _FakeSession(responses=[[], [], [], []])
 
-        with patch("aiohttp.ClientSession", return_value=fake_session):
+        with patch(
+            "custom_components.wsdot.coordinator.async_get_clientsession",
+            return_value=fake_session,
+        ):
             with pytest.raises(UpdateFailed):
                 await coord._async_update_data()
 
@@ -424,7 +430,10 @@ class TestAsyncUpdateData:
         coord = self._make_coordinator()
         fake_session = _FakeSession(error=Exception("Network error"))
 
-        with patch("aiohttp.ClientSession", return_value=fake_session):
+        with patch(
+            "custom_components.wsdot.coordinator.async_get_clientsession",
+            return_value=fake_session,
+        ):
             # All fetches fail → both travel_times and passes are empty → UpdateFailed
             with pytest.raises(UpdateFailed):
                 await coord._async_update_data()
@@ -436,7 +445,10 @@ class TestAsyncUpdateData:
         # Only passes succeed; travel_times/cameras/flow return empty
         fake_session = _FakeSession(responses=[[], sample_pass_conditions, [], []])
 
-        with patch("aiohttp.ClientSession", return_value=fake_session):
+        with patch(
+            "custom_components.wsdot.coordinator.async_get_clientsession",
+            return_value=fake_session,
+        ):
             result = await coord._async_update_data()
 
         # Pass data should be present (filtered to LOCAL_PASS_IDS)
@@ -445,31 +457,74 @@ class TestAsyncUpdateData:
         assert 11 in pass_ids
 
     @pytest.mark.asyncio
-    async def test_gather_exception_uses_cached_data(self, sample_travel_times):
-        """When gather returns an Exception result, cached data is used."""
+    async def test_all_endpoints_fail_raises_update_failed(self):
+        """When all endpoints fail, UpdateFailed is raised."""
+        from custom_components.wsdot.coordinator import UpdateFailed
+
         coord = self._make_coordinator()
         coord.data = {
-            DATA_TRAVEL_TIMES: sample_travel_times,
-            DATA_PASS_CONDITIONS: [
-                {"MountainPassId": 11, "MountainPassName": "Snoqualmie Pass"}
-            ],
+            DATA_TRAVEL_TIMES: [{"TravelTimeID": 1}],
+            DATA_PASS_CONDITIONS: [{"MountainPassId": 11}],
             DATA_CAMERAS: [],
             DATA_FLOW: [],
         }
 
-        # Patch _fetch_json to raise (simulating gather with return_exceptions)
         async def _fetch_raising(session, url):
             raise RuntimeError("Simulated failure")
 
         coord._fetch_json = _fetch_raising
 
         fake_session = _FakeSession()
-        with patch("aiohttp.ClientSession", return_value=fake_session):
+        with patch(
+            "custom_components.wsdot.coordinator.async_get_clientsession",
+            return_value=fake_session,
+        ):
+            with pytest.raises(UpdateFailed, match="All WSDOT API requests failed"):
+                await coord._async_update_data()
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_uses_cached_data(self, sample_pass_conditions):
+        """When some endpoints fail, cached data is used for the failed ones."""
+        coord = self._make_coordinator()
+        cached_travel_times = [
+            {
+                "TravelTimeID": 101,
+                "StartPoint": {"Latitude": 47.04, "Longitude": -122.90, "RoadName": "005"},
+                "EndPoint": {"Latitude": 47.25, "Longitude": -122.44, "RoadName": "005"},
+            }
+        ]
+        coord.data = {
+            DATA_TRAVEL_TIMES: cached_travel_times,
+            DATA_PASS_CONDITIONS: [],
+            DATA_CAMERAS: [],
+            DATA_FLOW: [],
+        }
+
+        call_count = 0
+
+        async def _fetch_mixed(session, url):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("Simulated failure for travel_times")
+            if call_count == 2:
+                return sample_pass_conditions
+            return []
+
+        coord._fetch_json = _fetch_mixed
+
+        fake_session = _FakeSession()
+        with patch(
+            "custom_components.wsdot.coordinator.async_get_clientsession",
+            return_value=fake_session,
+        ):
             result = await coord._async_update_data()
 
-        # Should have fallen back to cached data
+        # Travel times should fall back to cached data
         assert len(result[DATA_TRAVEL_TIMES]) > 0
-        assert len(result[DATA_PASS_CONDITIONS]) == 1
+        # Pass conditions should have fresh data (filtered to LOCAL_PASS_IDS)
+        pass_ids = [r["MountainPassId"] for r in result[DATA_PASS_CONDITIONS]]
+        assert 11 in pass_ids
 
 
 # ---------------------------------------------------------------------------
