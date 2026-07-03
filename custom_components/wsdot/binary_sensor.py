@@ -10,12 +10,9 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
-    ATTRIBUTION,
     DATA_PASS_CONDITIONS,
     DATA_TRAVEL_TIMES,
     DOMAIN,
@@ -23,6 +20,7 @@ from .const import (
     ICON_CONGESTION,
 )
 from .coordinator import WSDOTDataUpdateCoordinator
+from .entity import WSDOTBaseEntity, filter_none_attrs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,31 +52,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class WSDOTBinaryEntity(CoordinatorEntity[WSDOTDataUpdateCoordinator]):
-    """Base binary sensor entity for WSDOT integration."""
-
-    _attr_attribution = ATTRIBUTION
-    _attr_has_entity_name = True
-
-    def __init__(
-        self,
-        coordinator: WSDOTDataUpdateCoordinator,
-        unique_id: str,
-        device_name: str,
-        device_id: str,
-    ) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = unique_id
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device_id)},
-            name=device_name,
-            manufacturer="WSDOT",
-            model="Traffic API",
-            configuration_url="https://wsdot.wa.gov/traffic/",
-        )
-
-
-class WSDOTPassAdvisoryBinarySensor(WSDOTBinaryEntity, BinarySensorEntity):
+class WSDOTPassAdvisoryBinarySensor(WSDOTBaseEntity, BinarySensorEntity):
     """Binary sensor: is a travel advisory active for this mountain pass?"""
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
@@ -113,19 +87,15 @@ class WSDOTPassAdvisoryBinarySensor(WSDOTBinaryEntity, BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         rec = self._record
-        return {
-            k: v
-            for k, v in {
-                "pass_name": rec.get("MountainPassName"),
-                "restriction_one": rec.get("RestrictionOne", {}).get("RestrictionText"),
-                "restriction_two": rec.get("RestrictionTwo", {}).get("RestrictionText"),
-                "road_condition": rec.get("RoadCondition"),
-            }.items()
-            if v is not None
-        }
+        return filter_none_attrs({
+            "pass_name": rec.get("MountainPassName"),
+            "restriction_one": rec.get("RestrictionOne", {}).get("RestrictionText"),
+            "restriction_two": rec.get("RestrictionTwo", {}).get("RestrictionText"),
+            "road_condition": rec.get("RoadCondition"),
+        })
 
 
-class WSDOTCongestionBinarySensor(WSDOTBinaryEntity, BinarySensorEntity):
+class WSDOTCongestionBinarySensor(WSDOTBaseEntity, BinarySensorEntity):
     """Binary sensor: is this route experiencing significant congestion?"""
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
@@ -170,15 +140,11 @@ class WSDOTCongestionBinarySensor(WSDOTBinaryEntity, BinarySensorEntity):
         rec = self._record
         avg = rec.get("AverageTime", 0)
         cur = rec.get("CurrentTime", 0)
-        return {
-            k: v
-            for k, v in {
-                "current_time_minutes": cur,
-                "average_time_minutes": avg,
-                "delay_minutes": max(0, cur - avg) if avg and cur else None,
-                "congestion_ratio": round(cur / avg, 2) if avg else None,
-                "route_name": rec.get("Name"),
-                "description": rec.get("Description"),
-            }.items()
-            if v is not None
-        }
+        return filter_none_attrs({
+            "current_time_minutes": cur,
+            "average_time_minutes": avg,
+            "delay_minutes": max(0, cur - avg) if avg and cur else None,
+            "congestion_ratio": round(cur / avg, 2) if avg else None,
+            "route_name": rec.get("Name"),
+            "description": rec.get("Description"),
+        })

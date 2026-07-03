@@ -12,17 +12,15 @@ from homeassistant.components.camera import Camera, CameraEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
-    ATTRIBUTION,
     DATA_CAMERAS,
     DOMAIN,
     ICON_CAMERA,
 )
 from .coordinator import WSDOTDataUpdateCoordinator
+from .entity import WSDOTBaseEntity, filter_none_attrs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,11 +59,9 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class WSDOTCamera(CoordinatorEntity[WSDOTDataUpdateCoordinator], Camera):
+class WSDOTCamera(WSDOTBaseEntity, Camera):
     """Representation of a WSDOT highway camera."""
 
-    _attr_attribution = ATTRIBUTION
-    _attr_has_entity_name = True
     _attr_icon = ICON_CAMERA
     _attr_frame_interval = 60  # seconds between frame refreshes
 
@@ -75,22 +71,23 @@ class WSDOTCamera(CoordinatorEntity[WSDOTDataUpdateCoordinator], Camera):
         camera_id: int,
     ) -> None:
         """Initialise camera entity."""
-        CoordinatorEntity.__init__(self, coordinator)
-        Camera.__init__(self)
-
-        self._camera_id = camera_id
         record = coordinator.get_camera(camera_id) or {}
-
         title = record.get("Title", f"Camera {camera_id}")
-        self._attr_name = title
-        self._attr_unique_id = f"{DOMAIN}_camera_{camera_id}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"camera_{camera_id}")},
-            name=title,
+
+        WSDOTBaseEntity.__init__(
+            self,
+            coordinator,
+            unique_id=f"{DOMAIN}_camera_{camera_id}",
+            device_name=title,
+            device_id=f"camera_{camera_id}",
             manufacturer=record.get("CameraOwner") or "WSDOT",
             model="Highway Camera",
             configuration_url=record.get("OwnerURL") or "https://wsdot.wa.gov/traffic/",
         )
+        Camera.__init__(self)
+
+        self._camera_id = camera_id
+        self._attr_name = title
         self._image_url: str | None = record.get("ImageURL")
         self._cached_image: bytes | None = None
 
@@ -103,25 +100,21 @@ class WSDOTCamera(CoordinatorEntity[WSDOTDataUpdateCoordinator], Camera):
         """Return additional camera attributes for the Lovelace panel."""
         rec = self._record
         loc = rec.get("CameraLocation") or {}
-        return {
-            k: v
-            for k, v in {
-                "camera_id": self._camera_id,
-                "title": rec.get("Title"),
-                "description": rec.get("Description"),
-                "image_url": rec.get("ImageURL"),
-                "road_name": loc.get("RoadName"),
-                "direction": loc.get("Direction"),
-                "milepost": loc.get("MilePost"),
-                "latitude": rec.get("DisplayLatitude"),
-                "longitude": rec.get("DisplayLongitude"),
-                "region": rec.get("Region"),
-                "camera_owner": rec.get("CameraOwner"),
-                "owner_url": rec.get("OwnerURL"),
-                "is_active": rec.get("IsActive"),
-            }.items()
-            if v is not None
-        }
+        return filter_none_attrs({
+            "camera_id": self._camera_id,
+            "title": rec.get("Title"),
+            "description": rec.get("Description"),
+            "image_url": rec.get("ImageURL"),
+            "road_name": loc.get("RoadName"),
+            "direction": loc.get("Direction"),
+            "milepost": loc.get("MilePost"),
+            "latitude": rec.get("DisplayLatitude"),
+            "longitude": rec.get("DisplayLongitude"),
+            "region": rec.get("Region"),
+            "camera_owner": rec.get("CameraOwner"),
+            "owner_url": rec.get("OwnerURL"),
+            "is_active": rec.get("IsActive"),
+        })
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
