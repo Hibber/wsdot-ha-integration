@@ -1,6 +1,7 @@
 """Config flow for WSDOT Traffic integration."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -36,13 +37,21 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status == 401 or resp.status == 403:
+                if resp.status in (401, 403):
                     raise InvalidAuth
                 if resp.status != 200:
-                    raise CannotConnect
+                    raise CannotConnect(
+                        f"Unexpected HTTP status {resp.status} from WSDOT API"
+                    )
                 json_data = await resp.json(content_type=None)
                 if not isinstance(json_data, list):
-                    raise InvalidAuth
+                    raise CannotConnect(
+                        "WSDOT API returned unexpected response format"
+                    )
+    except InvalidAuth:
+        raise
+    except asyncio.TimeoutError as err:
+        raise CannotConnect("Connection to WSDOT API timed out") from err
     except aiohttp.ClientError as err:
         raise CannotConnect from err
 
