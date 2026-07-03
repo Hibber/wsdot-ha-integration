@@ -205,10 +205,16 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
                 else:
                     data[key_name] = []
             elif result is None:
-                _LOGGER.warning(
-                    "WSDOT API returned empty response for %s", key_name
-                )
-                data[key_name] = []
+                errors.append(f"{key_name}: transient fetch error")
+                _LOGGER.warning("Fetch failed for %s", key_name)
+                if self.data and key_name in self.data:
+                    _LOGGER.info(
+                        "Using stale data for %s from previous successful fetch",
+                        key_name,
+                    )
+                    data[key_name] = self.data[key_name]
+                else:
+                    data[key_name] = []
             else:
                 data[key_name] = result
 
