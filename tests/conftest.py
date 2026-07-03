@@ -105,6 +105,13 @@ ha_mock.const.UnitOfTime.MINUTES = "min"
 # --- homeassistant.data_entry_flow ---
 ha_mock.data_entry_flow.FlowResult = dict
 
+# --- homeassistant.exceptions ---
+class _FakeConfigEntryAuthFailed(Exception):
+    pass
+
+
+ha_mock.exceptions.ConfigEntryAuthFailed = _FakeConfigEntryAuthFailed
+
 # --- homeassistant.helpers ---
 ha_mock.helpers.config_validation.positive_int = int
 ha_mock.helpers.config_validation = MagicMock()
@@ -209,6 +216,7 @@ _ha_modules = {
     "homeassistant.const": ha_mock.const,
     "homeassistant.config_entries": ha_mock.config_entries,
     "homeassistant.data_entry_flow": ha_mock.data_entry_flow,
+    "homeassistant.exceptions": ha_mock.exceptions,
     "homeassistant.helpers": ha_mock.helpers,
     "homeassistant.helpers.config_validation": ha_mock.helpers.config_validation,
     "homeassistant.helpers.entity": ha_mock.helpers.entity,

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from typing import Any
 
@@ -35,20 +36,20 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     api_key = data[CONF_API_KEY]
     url = PASS_CONDITIONS_URL.format(api_key=api_key)
 
+    session = async_get_clientsession(hass)
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status in (401, 403):
-                    raise InvalidAuth
-                if resp.status != 200:
-                    raise CannotConnect(
-                        f"Unexpected HTTP status {resp.status} from WSDOT API"
-                    )
-                json_data = await resp.json(content_type=None)
-                if not isinstance(json_data, list):
-                    raise CannotConnect(
-                        "WSDOT API returned unexpected response format"
-                    )
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            if resp.status in (401, 403):
+                raise InvalidAuth
+            if resp.status != 200:
+                raise CannotConnect(
+                    f"Unexpected HTTP status {resp.status} from WSDOT API"
+                )
+            result = await resp.json(content_type=None)
+            if not isinstance(result, list):
+                raise CannotConnect(
+                    "WSDOT API returned unexpected response format"
+                )
     except InvalidAuth:
         raise
     except asyncio.TimeoutError as err:
