@@ -28,19 +28,19 @@ class TestValidateInput:
         """Successful validation returns title."""
         hass = MagicMock()
 
-        with patch("aiohttp.ClientSession") as mock_session_cls:
-            mock_resp = AsyncMock()
-            mock_resp.status = 200
-            mock_resp.json = AsyncMock(return_value=[{"MountainPassId": 1}])
-            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-            mock_resp.__aexit__ = AsyncMock(return_value=False)
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(return_value=[{"MountainPassId": 1}])
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
 
-            mock_session = AsyncMock()
-            mock_session.get = MagicMock(return_value=mock_resp)
-            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock(return_value=False)
-            mock_session_cls.return_value = mock_session
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_resp)
 
+        with patch(
+            "custom_components.wsdot.config_flow.async_get_clientsession",
+            return_value=mock_session,
+        ):
             result = await validate_input(hass, {CONF_API_KEY: "valid_key"})
 
         assert result == {"title": "WSDOT Traffic"}
@@ -50,18 +50,18 @@ class TestValidateInput:
         """Returns InvalidAuth on 401 response."""
         hass = MagicMock()
 
-        with patch("aiohttp.ClientSession") as mock_session_cls:
-            mock_resp = AsyncMock()
-            mock_resp.status = 401
-            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-            mock_resp.__aexit__ = AsyncMock(return_value=False)
+        mock_resp = AsyncMock()
+        mock_resp.status = 401
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
 
-            mock_session = AsyncMock()
-            mock_session.get = MagicMock(return_value=mock_resp)
-            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock(return_value=False)
-            mock_session_cls.return_value = mock_session
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_resp)
 
+        with patch(
+            "custom_components.wsdot.config_flow.async_get_clientsession",
+            return_value=mock_session,
+        ):
             with pytest.raises(InvalidAuth):
                 await validate_input(hass, {CONF_API_KEY: "bad_key"})
 
@@ -70,18 +70,18 @@ class TestValidateInput:
         """Returns InvalidAuth on 403 response."""
         hass = MagicMock()
 
-        with patch("aiohttp.ClientSession") as mock_session_cls:
-            mock_resp = AsyncMock()
-            mock_resp.status = 403
-            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-            mock_resp.__aexit__ = AsyncMock(return_value=False)
+        mock_resp = AsyncMock()
+        mock_resp.status = 403
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
 
-            mock_session = AsyncMock()
-            mock_session.get = MagicMock(return_value=mock_resp)
-            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock(return_value=False)
-            mock_session_cls.return_value = mock_session
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_resp)
 
+        with patch(
+            "custom_components.wsdot.config_flow.async_get_clientsession",
+            return_value=mock_session,
+        ):
             with pytest.raises(InvalidAuth):
                 await validate_input(hass, {CONF_API_KEY: "bad_key"})
 
@@ -90,18 +90,18 @@ class TestValidateInput:
         """Returns CannotConnect on server error."""
         hass = MagicMock()
 
-        with patch("aiohttp.ClientSession") as mock_session_cls:
-            mock_resp = AsyncMock()
-            mock_resp.status = 500
-            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-            mock_resp.__aexit__ = AsyncMock(return_value=False)
+        mock_resp = AsyncMock()
+        mock_resp.status = 500
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
 
-            mock_session = AsyncMock()
-            mock_session.get = MagicMock(return_value=mock_resp)
-            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock(return_value=False)
-            mock_session_cls.return_value = mock_session
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_resp)
 
+        with patch(
+            "custom_components.wsdot.config_flow.async_get_clientsession",
+            return_value=mock_session,
+        ):
             with pytest.raises(CannotConnect):
                 await validate_input(hass, {CONF_API_KEY: "key"})
 
@@ -112,37 +112,37 @@ class TestValidateInput:
 
         hass = MagicMock()
 
-        with patch("aiohttp.ClientSession") as mock_session_cls:
-            mock_session = AsyncMock()
-            mock_session.get = MagicMock(
-                side_effect=aiohttp.ClientError("Connection refused")
-            )
-            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock(return_value=False)
-            mock_session_cls.return_value = mock_session
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(
+            side_effect=aiohttp.ClientError("Connection refused")
+        )
 
+        with patch(
+            "custom_components.wsdot.config_flow.async_get_clientsession",
+            return_value=mock_session,
+        ):
             with pytest.raises(CannotConnect):
                 await validate_input(hass, {CONF_API_KEY: "key"})
 
     @pytest.mark.asyncio
-    async def test_invalid_auth_non_list_response(self):
-        """Returns InvalidAuth when response is not a list."""
+    async def test_cannot_connect_non_list_response(self):
+        """Returns CannotConnect when response is not a list."""
         hass = MagicMock()
 
-        with patch("aiohttp.ClientSession") as mock_session_cls:
-            mock_resp = AsyncMock()
-            mock_resp.status = 200
-            mock_resp.json = AsyncMock(return_value={"error": "bad key"})
-            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-            mock_resp.__aexit__ = AsyncMock(return_value=False)
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(return_value={"error": "bad key"})
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
 
-            mock_session = AsyncMock()
-            mock_session.get = MagicMock(return_value=mock_resp)
-            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock(return_value=False)
-            mock_session_cls.return_value = mock_session
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_resp)
 
-            with pytest.raises(InvalidAuth):
+        with patch(
+            "custom_components.wsdot.config_flow.async_get_clientsession",
+            return_value=mock_session,
+        ):
+            with pytest.raises(CannotConnect):
                 await validate_input(hass, {CONF_API_KEY: "key"})
 
 
