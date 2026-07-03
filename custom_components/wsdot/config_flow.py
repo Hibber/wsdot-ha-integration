@@ -1,6 +1,7 @@
 """Config flow for WSDOT Traffic integration."""
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Any
 
@@ -10,6 +11,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 
 from .const import (
@@ -34,15 +36,15 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     url = PASS_CONDITIONS_URL.format(api_key=api_key)
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status == 401 or resp.status == 403:
-                    raise InvalidAuth
-                if resp.status != 200:
-                    raise CannotConnect
-                json_data = await resp.json(content_type=None)
-                if not isinstance(json_data, list):
-                    raise InvalidAuth
+        session = async_get_clientsession(hass)
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            if resp.status == 401 or resp.status == 403:
+                raise InvalidAuth
+            if resp.status != 200:
+                raise CannotConnect
+            json_data = await resp.json(content_type=None)
+            if not isinstance(json_data, list):
+                raise InvalidAuth
     except aiohttp.ClientError as err:
         raise CannotConnect from err
 
@@ -71,7 +73,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
-                await self.async_set_unique_id(user_input[CONF_API_KEY][:8])
+                key_hash = hashlib.sha256(
+                    user_input[CONF_API_KEY].encode()
+                ).hexdigest()[:8]
+                await self.async_set_unique_id(key_hash)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(title=info["title"], data=user_input)
 

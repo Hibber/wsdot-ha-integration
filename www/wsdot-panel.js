@@ -7,6 +7,15 @@ class WsdotPanel extends HTMLElement {
     this._markers = [];
   }
 
+  /** Escape a value for safe insertion into HTML. */
+  _esc(val) {
+    if (val == null) return "";
+    const s = String(val);
+    const el = document.createElement("span");
+    el.textContent = s;
+    return el.innerHTML;
+  }
+
   set hass(hass) {
     this._hass = hass;
     if (this._map) this._updateMarkers();
@@ -97,11 +106,15 @@ class WsdotPanel extends HTMLElement {
       link.id = "leaflet-css";
       link.rel = "stylesheet";
       link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      link.integrity = "sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H";
+      link.crossOrigin = "anonymous";
       document.head.appendChild(link);
     }
     if (!window.L) {
       const script = document.createElement("script");
       script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.integrity = "sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH";
+      script.crossOrigin = "anonymous";
       script.onload = () => this._initMap();
       document.head.appendChild(script);
     } else {
@@ -157,14 +170,21 @@ class WsdotPanel extends HTMLElement {
       if (id.startsWith("camera.")) {
         // Highway Camera
         const pic = attrs.entity_picture || "";
+        const popupEl = document.createElement("div");
+        popupEl.className = "popup-content";
+        const titleEl = document.createElement("div");
+        titleEl.className = "popup-title";
+        titleEl.textContent = attrs.friendly_name || "";
+        popupEl.appendChild(titleEl);
+        if (pic) {
+          const img = document.createElement("img");
+          img.className = "popup-img";
+          img.src = pic;
+          img.onerror = function() { this.style.display = "none"; };
+          popupEl.appendChild(img);
+        }
         marker = L.marker([attrs.latitude, attrs.longitude], { icon: this._createIcon("📷", "#3b82f6") })
-          .bindPopup(
-            `<div class="popup-content">
-              <div class="popup-title">${attrs.friendly_name}</div>
-              ${pic ? `<img class="popup-img" src="${pic}" onerror="this.style.display='none'" />` : ""}
-            </div>`, 
-            { maxWidth: 340 }
-          );
+          .bindPopup(popupEl, { maxWidth: 340 });
       } else if (attrs.travel_time_id) {
         // Travel Time Route
         const avg = attrs.average_time_minutes || 1;
@@ -176,9 +196,9 @@ class WsdotPanel extends HTMLElement {
         marker = L.marker([attrs.latitude, attrs.longitude], { icon: this._createIcon("🚗", color) })
           .bindPopup(
             `<div class="popup-content">
-              <div class="popup-title">${attrs.friendly_name}</div>
-              <div class="popup-stat" style="color: ${color}; font-size: 16px; font-weight: bold;">${stateObj.state} min now</div>
-              <div class="popup-stat" style="color: #94a3b8;">Avg: ${attrs.average_time_minutes} min</div>
+              <div class="popup-title">${this._esc(attrs.friendly_name)}</div>
+              <div class="popup-stat" style="color: ${color}; font-size: 16px; font-weight: bold;">${this._esc(stateObj.state)} min now</div>
+              <div class="popup-stat" style="color: #94a3b8;">Avg: ${this._esc(attrs.average_time_minutes)} min</div>
             </div>`
           );
       } else if (attrs.pass_id) {
@@ -186,9 +206,9 @@ class WsdotPanel extends HTMLElement {
         marker = L.marker([attrs.latitude, attrs.longitude], { icon: this._createIcon("⛰️", "#8b5cf6") })
           .bindPopup(
             `<div class="popup-content">
-              <div class="popup-title">${attrs.friendly_name}</div>
-              <div class="popup-stat" style="color: #f59e0b;">${stateObj.state}</div>
-              <div class="popup-stat">Temp: ${attrs.temperature}°F</div>
+              <div class="popup-title">${this._esc(attrs.friendly_name)}</div>
+              <div class="popup-stat" style="color: #f59e0b;">${this._esc(stateObj.state)}</div>
+              <div class="popup-stat">Temp: ${this._esc(attrs.temperature)}°F</div>
             </div>`
           );
       }
