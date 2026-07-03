@@ -11,6 +11,7 @@ import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -66,6 +67,11 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
     # Internal helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _redact_url(url: str) -> str:
+        """Remove the AccessCode query parameter from a URL for safe logging."""
+        return re.sub(r"AccessCode=[^&]+", "AccessCode=REDACTED", url)
+
     async def _fetch_json(self, session: aiohttp.ClientSession, url: str) -> Any:
         """Fetch JSON from *url*, returning parsed data or None on error."""
         try:
@@ -75,7 +81,7 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
                 resp.raise_for_status()
                 return await resp.json(content_type=None)
         except Exception as err:  # pylint: disable=broad-except
-            _LOGGER.warning("Failed to fetch %s: %s", url, err)
+            _LOGGER.warning("Failed to fetch %s: %s", self._redact_url(url), err)
             return None
 
     # ------------------------------------------------------------------
@@ -157,11 +163,11 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
             DATA_FLOW: FLOW_DATA_URL.format(api_key=key),
         }
 
-        async with aiohttp.ClientSession() as session:
-            results = await asyncio.gather(
-                *[self._fetch_json(session, url) for url in urls.values()],
-                return_exceptions=True,
-            )
+        session = async_get_clientsession(self.hass)
+        results = await asyncio.gather(
+            *[self._fetch_json(session, url) for url in urls.values()],
+            return_exceptions=True,
+        )
 
         data: dict[str, Any] = {}
         for key_name, result in zip(urls.keys(), results):
