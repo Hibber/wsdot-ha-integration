@@ -12,6 +12,7 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -75,9 +76,9 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
     async def _fetch_json(self, session: aiohttp.ClientSession, url: str) -> Any:
         """Fetch JSON from *url*.
 
-        Raises:
-            ConfigEntryAuthFailed: on 401/403 (invalid API key).
-            UpdateFailed: on server errors, timeouts, or connection problems.
+        Returns None on expected transient errors (network, timeout, JSON decode).
+        Raises ConfigEntryAuthFailed on 401/403 (invalid API key).
+        Unexpected exceptions propagate to the caller.
         """
         try:
             async with session.get(
@@ -88,22 +89,15 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
                         f"WSDOT API authentication failed (HTTP {resp.status}). "
                         "Check your API key in the integration configuration."
                     )
-                if resp.status >= 500:
-                    raise UpdateFailed(
-                        f"WSDOT API server error (HTTP {resp.status}) for {url}"
-                    )
                 resp.raise_for_status()
                 return await resp.json(content_type=None)
-        except (ConfigEntryAuthFailed, UpdateFailed):
+        except ConfigEntryAuthFailed:
             raise
-        except asyncio.TimeoutError as err:
-            raise UpdateFailed(
-                f"Timeout fetching {url} after 15s"
-            ) from err
-        except aiohttp.ClientError as err:
-            raise UpdateFailed(
-                f"Connection error fetching {url}: {err}"
-            ) from err
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as err:
+            _LOGGER.warning(
+                "Error fetching %s: %s", self._redact_url(url), err
+            )
+            return None
 
     # ------------------------------------------------------------------
     # Local area filtering
@@ -211,15 +205,21 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
                 else:
                     data[key_name] = []
             elif result is None:
-                _LOGGER.warning(
-                    "WSDOT API returned empty response for %s", key_name
-                )
-                data[key_name] = []
+                errors.append(f"{key_name}: transient fetch error")
+                _LOGGER.warning("Fetch failed for %s", key_name)
+                if self.data and key_name in self.data:
+                    _LOGGER.info(
+                        "Using stale data for %s from previous successful fetch",
+                        key_name,
+                    )
+                    data[key_name] = self.data[key_name]
+                else:
+                    data[key_name] = []
             else:
                 data[key_name] = result
 
-        # If ALL endpoints failed, raise immediately.
-        if len(errors) == len(urls):
+        # If ALL endpoints failed and no cached data was recovered, raise.
+        if len(errors) == len(urls) and not any(data.get(k) for k in urls):
             raise UpdateFailed(
                 f"All WSDOT API requests failed: {'; '.join(errors)}"
             )

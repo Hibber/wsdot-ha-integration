@@ -5,6 +5,7 @@ import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 
 from custom_components.wsdot.const import (
@@ -391,7 +392,7 @@ class TestAsyncUpdateData:
 
         fake_session = _FakeSession(responses=[travel_times, passes, cameras, flow])
 
-        with patch("aiohttp.ClientSession", return_value=fake_session):
+        with patch("custom_components.wsdot.coordinator.async_get_clientsession", return_value=fake_session):
             result = await coord._async_update_data()
 
         # Should have filtered data
@@ -412,7 +413,7 @@ class TestAsyncUpdateData:
 
         fake_session = _FakeSession(responses=[[], [], [], []])
 
-        with patch("aiohttp.ClientSession", return_value=fake_session):
+        with patch("custom_components.wsdot.coordinator.async_get_clientsession", return_value=fake_session):
             with pytest.raises(UpdateFailed):
                 await coord._async_update_data()
 
@@ -422,9 +423,9 @@ class TestAsyncUpdateData:
         from custom_components.wsdot.coordinator import UpdateFailed
 
         coord = self._make_coordinator()
-        fake_session = _FakeSession(error=Exception("Network error"))
+        fake_session = _FakeSession(error=aiohttp.ClientError("Network error"))
 
-        with patch("aiohttp.ClientSession", return_value=fake_session):
+        with patch("custom_components.wsdot.coordinator.async_get_clientsession", return_value=fake_session):
             # All fetches fail → both travel_times and passes are empty → UpdateFailed
             with pytest.raises(UpdateFailed):
                 await coord._async_update_data()
@@ -436,7 +437,7 @@ class TestAsyncUpdateData:
         # Only passes succeed; travel_times/cameras/flow return empty
         fake_session = _FakeSession(responses=[[], sample_pass_conditions, [], []])
 
-        with patch("aiohttp.ClientSession", return_value=fake_session):
+        with patch("custom_components.wsdot.coordinator.async_get_clientsession", return_value=fake_session):
             result = await coord._async_update_data()
 
         # Pass data should be present (filtered to LOCAL_PASS_IDS)
@@ -464,7 +465,7 @@ class TestAsyncUpdateData:
         coord._fetch_json = _fetch_raising
 
         fake_session = _FakeSession()
-        with patch("aiohttp.ClientSession", return_value=fake_session):
+        with patch("custom_components.wsdot.coordinator.async_get_clientsession", return_value=fake_session):
             result = await coord._async_update_data()
 
         # Should have fallen back to cached data
