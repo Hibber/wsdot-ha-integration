@@ -3,12 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import timedelta
 from typing import Any
 
 import aiohttp
 
-from homeassistant.components.camera import Camera, CameraEntityFeature
+from homeassistant.components.camera import Camera
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -123,7 +122,8 @@ class WSDOTCamera(WSDOTBaseEntity, Camera):
         rec = self._record
         image_url = rec.get("ImageURL") or self._image_url
         if not image_url:
-            return None
+            _LOGGER.debug("No image URL for camera %s", self._camera_id)
+            return self._cached_image
 
         session = async_get_clientsession(self.hass)
         try:
@@ -144,7 +144,15 @@ class WSDOTCamera(WSDOTBaseEntity, Camera):
         except aiohttp.ClientError as err:
             _LOGGER.warning("Error fetching camera %s: %s", self._camera_id, err)
 
-        # Return cached image on error
+        if self._cached_image is not None:
+            _LOGGER.debug(
+                "Returning stale cached image for camera %s", self._camera_id
+            )
+        else:
+            _LOGGER.warning(
+                "No cached image available for camera %s after fetch failure",
+                self._camera_id,
+            )
         return self._cached_image
 
     @property

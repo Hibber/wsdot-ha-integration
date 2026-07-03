@@ -11,7 +11,7 @@ import aiohttp
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -73,16 +73,37 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
         return re.sub(r"AccessCode=[^&]+", "AccessCode=REDACTED", url)
 
     async def _fetch_json(self, session: aiohttp.ClientSession, url: str) -> Any:
-        """Fetch JSON from *url*, returning parsed data or None on error."""
+        """Fetch JSON from *url*.
+
+        Raises:
+            ConfigEntryAuthFailed: on 401/403 (invalid API key).
+            UpdateFailed: on server errors, timeouts, or connection problems.
+        """
         try:
             async with session.get(
                 url, timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
+                if resp.status in (401, 403):
+                    raise ConfigEntryAuthFailed(
+                        f"WSDOT API authentication failed (HTTP {resp.status}). "
+                        "Check your API key in the integration configuration."
+                    )
+                if resp.status >= 500:
+                    raise UpdateFailed(
+                        f"WSDOT API server error (HTTP {resp.status}) for {url}"
+                    )
                 resp.raise_for_status()
                 return await resp.json(content_type=None)
-        except Exception as err:  # pylint: disable=broad-except
-            _LOGGER.warning("Failed to fetch %s: %s", self._redact_url(url), err)
-            return None
+        except (ConfigEntryAuthFailed, UpdateFailed):
+            raise
+        except asyncio.TimeoutError as err:
+            raise UpdateFailed(
+                f"Timeout fetching {url} after 15s"
+            ) from err
+        except aiohttp.ClientError as err:
+            raise UpdateFailed(
+                f"Connection error fetching {url}: {err}"
+            ) from err
 
     # ------------------------------------------------------------------
     # Local area filtering
@@ -169,22 +190,54 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
             return_exceptions=True,
         )
 
+        # Auth errors must propagate immediately — HA will mark the entry
+        # as needing re-authentication.
+        for result in results:
+            if isinstance(result, ConfigEntryAuthFailed):
+                raise result
+
         data: dict[str, Any] = {}
+        errors: list[str] = []
         for key_name, result in zip(urls.keys(), results):
             if isinstance(result, Exception):
+                errors.append(f"{key_name}: {result}")
                 _LOGGER.error("Error fetching %s: %s", key_name, result)
                 if self.data and key_name in self.data:
+                    _LOGGER.warning(
+                        "Using stale data for %s from previous successful fetch",
+                        key_name,
+                    )
                     data[key_name] = self.data[key_name]
                 else:
                     data[key_name] = []
+            elif result is None:
+                _LOGGER.warning(
+                    "WSDOT API returned empty response for %s", key_name
+                )
+                data[key_name] = []
             else:
-                data[key_name] = result or []
+                data[key_name] = result
+
+        # If ALL endpoints failed, raise immediately.
+        if len(errors) == len(urls):
+            raise UpdateFailed(
+                f"All WSDOT API requests failed: {'; '.join(errors)}"
+            )
 
         # Apply local area filter before returning
         data = self._filter_local_data(data)
 
         if not data[DATA_TRAVEL_TIMES] and not data[DATA_PASS_CONDITIONS]:
-            raise UpdateFailed("No data received from WSDOT API")
+            raise UpdateFailed("No travel time or pass data received from WSDOT API")
+
+        # Log partial failures so they don't go unnoticed.
+        if errors:
+            _LOGGER.warning(
+                "Partial WSDOT API failure (%d/%d endpoints): %s",
+                len(errors),
+                len(urls),
+                "; ".join(errors),
+            )
 
         return data
 
