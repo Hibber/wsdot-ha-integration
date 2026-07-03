@@ -67,6 +67,11 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
     # Internal helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _redact_url(url: str) -> str:
+        """Remove the AccessCode query parameter from a URL for safe logging."""
+        return re.sub(r"AccessCode=[^&]+", "AccessCode=REDACTED", url)
+
     async def _fetch_json(self, session: aiohttp.ClientSession, url: str) -> Any:
         """Fetch JSON from *url*.
 
@@ -179,11 +184,11 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
             DATA_FLOW: FLOW_DATA_URL.format(api_key=key),
         }
 
-        async with aiohttp.ClientSession() as session:
-            results = await asyncio.gather(
-                *[self._fetch_json(session, url) for url in urls.values()],
-                return_exceptions=True,
-            )
+        session = async_get_clientsession(self.hass)
+        results = await asyncio.gather(
+            *[self._fetch_json(session, url) for url in urls.values()],
+            return_exceptions=True,
+        )
 
         # Auth errors must propagate immediately — HA will mark the entry
         # as needing re-authentication.
@@ -240,38 +245,27 @@ class WSDOTDataUpdateCoordinator(DataUpdateCoordinator):
     # Convenience lookups
     # ------------------------------------------------------------------
 
-    def get_travel_time(self, travel_time_id: int) -> dict | None:
-        """Return a specific travel time record by ID."""
+    def _get_record(self, data_key: str, id_field: str, record_id: int) -> dict | None:
+        """Return the first record in *data_key* whose *id_field* equals *record_id*."""
         if not self.data:
             return None
-        for record in self.data.get(DATA_TRAVEL_TIMES, []):
-            if record.get("TravelTimeID") == travel_time_id:
+        for record in self.data.get(data_key, []):
+            if record.get(id_field) == record_id:
                 return record
         return None
+
+    def get_travel_time(self, travel_time_id: int) -> dict | None:
+        """Return a specific travel time record by ID."""
+        return self._get_record(DATA_TRAVEL_TIMES, "TravelTimeID", travel_time_id)
 
     def get_pass(self, pass_id: int) -> dict | None:
         """Return a specific mountain pass record by ID."""
-        if not self.data:
-            return None
-        for record in self.data.get(DATA_PASS_CONDITIONS, []):
-            if record.get("MountainPassId") == pass_id:
-                return record
-        return None
+        return self._get_record(DATA_PASS_CONDITIONS, "MountainPassId", pass_id)
 
     def get_camera(self, camera_id: int) -> dict | None:
         """Return a specific camera record by ID."""
-        if not self.data:
-            return None
-        for record in self.data.get(DATA_CAMERAS, []):
-            if record.get("CameraID") == camera_id:
-                return record
-        return None
+        return self._get_record(DATA_CAMERAS, "CameraID", camera_id)
 
     def get_flow_station(self, flow_station_id: int) -> dict | None:
         """Return a specific flow station by ID."""
-        if not self.data:
-            return None
-        for record in self.data.get(DATA_FLOW, []):
-            if record.get("FlowStationID") == flow_station_id:
-                return record
-        return None
+        return self._get_record(DATA_FLOW, "FlowStationID", flow_station_id)
