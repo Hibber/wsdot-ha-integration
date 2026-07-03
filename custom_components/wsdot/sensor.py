@@ -7,18 +7,14 @@ from typing import Any
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
-    SensorEntityDescription,
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
-    ATTRIBUTION,
     DATA_FLOW,
     DATA_PASS_CONDITIONS,
     DATA_TRAVEL_TIMES,
@@ -29,6 +25,7 @@ from .const import (
     ICON_TRAVEL_TIME,
 )
 from .coordinator import WSDOTDataUpdateCoordinator, parse_wsdot_date
+from .entity import WSDOTBaseEntity, filter_none_attrs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,39 +70,10 @@ async def async_setup_entry(
 
 
 # ---------------------------------------------------------------------------
-# Base entity
-# ---------------------------------------------------------------------------
-
-class WSDOTEntity(CoordinatorEntity[WSDOTDataUpdateCoordinator]):
-    """Base entity for WSDOT integration."""
-
-    _attr_attribution = ATTRIBUTION
-    _attr_has_entity_name = True
-
-    def __init__(
-        self,
-        coordinator: WSDOTDataUpdateCoordinator,
-        unique_id: str,
-        device_name: str,
-        device_id: str,
-    ) -> None:
-        """Initialise."""
-        super().__init__(coordinator)
-        self._attr_unique_id = unique_id
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device_id)},
-            name=device_name,
-            manufacturer="WSDOT",
-            model="Traffic API",
-            configuration_url="https://wsdot.wa.gov/traffic/",
-        )
-
-
-# ---------------------------------------------------------------------------
 # Travel Time sensors
 # ---------------------------------------------------------------------------
 
-class WSDOTTravelTimeSensor(WSDOTEntity, SensorEntity):
+class WSDOTTravelTimeSensor(WSDOTBaseEntity, SensorEntity):
     """Sensor for a WSDOT travel time route (current or average)."""
 
     _attr_device_class = SensorDeviceClass.DURATION
@@ -171,14 +139,14 @@ class WSDOTTravelTimeSensor(WSDOTEntity, SensorEntity):
             if avg and cur:
                 attrs["congestion_ratio"] = round(cur / avg, 2)
                 attrs["delay_minutes"] = max(0, cur - avg)
-        return {k: v for k, v in attrs.items() if v is not None}
+        return filter_none_attrs(attrs)
 
 
 # ---------------------------------------------------------------------------
 # Mountain Pass sensors
 # ---------------------------------------------------------------------------
 
-class WSDOTPassConditionSensor(WSDOTEntity, SensorEntity):
+class WSDOTPassConditionSensor(WSDOTBaseEntity, SensorEntity):
     """Sensor for mountain pass road condition."""
 
     _attr_icon = ICON_PASS
@@ -236,10 +204,10 @@ class WSDOTPassConditionSensor(WSDOTEntity, SensorEntity):
         date_updated = parse_wsdot_date(rec.get("DateUpdated"))
         if date_updated:
             attrs["last_updated"] = date_updated.isoformat()
-        return {k: v for k, v in attrs.items() if v is not None}
+        return filter_none_attrs(attrs)
 
 
-class WSDOTPassTemperatureSensor(WSDOTEntity, SensorEntity):
+class WSDOTPassTemperatureSensor(WSDOTBaseEntity, SensorEntity):
     """Sensor for mountain pass temperature."""
 
     _attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -281,7 +249,7 @@ class WSDOTPassTemperatureSensor(WSDOTEntity, SensorEntity):
 # Traffic Flow sensor
 # ---------------------------------------------------------------------------
 
-class WSDOTFlowSensor(WSDOTEntity, SensorEntity):
+class WSDOTFlowSensor(WSDOTBaseEntity, SensorEntity):
     """Sensor for a WSDOT traffic flow station."""
 
     _attr_icon = ICON_CONGESTION
@@ -327,17 +295,13 @@ class WSDOTFlowSensor(WSDOTEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra attributes."""
         rec = self._record
-        return {
-            k: v
-            for k, v in {
-                "station_id": self._station_id,
-                "station_name": rec.get("StationName"),
-                "road_name": rec.get("RoadName"),
-                "direction": rec.get("Direction"),
-                "latitude": rec.get("Latitude"),
-                "longitude": rec.get("Longitude"),
-                "flow_reading_value": rec.get("FlowReadingValue"),
-                "congestion_category": rec.get("CongestionCategory"),
-            }.items()
-            if v is not None
-        }
+        return filter_none_attrs({
+            "station_id": self._station_id,
+            "station_name": rec.get("StationName"),
+            "road_name": rec.get("RoadName"),
+            "direction": rec.get("Direction"),
+            "latitude": rec.get("Latitude"),
+            "longitude": rec.get("Longitude"),
+            "flow_reading_value": rec.get("FlowReadingValue"),
+            "congestion_category": rec.get("CongestionCategory"),
+        })
